@@ -1,0 +1,208 @@
+# ============================================================================
+# ARCHIVED — this GitHub Actions pipeline is NOT active.
+#
+# It has been moved out of .github/workflows/ (the only folder GitHub Actions
+# actually scans for pipelines), so it will no longer run automatically.
+# It's kept here purely for reference / in case we want to go back to
+# GitHub Actions later.
+#
+# The active pipeline going forward is Azure DevOps Pipelines:
+#   see /azure-pipelines.yml in the repo root.
+# ============================================================================
+
+# This is a GitHub Actions "workflow" file — it defines an automated pipeline
+# that runs on GitHub's servers whenever certain events happen in this repo
+# (like a push or pull request). This is our CI/CD pipeline:
+#   CI (Continuous Integration) = automatically build & test every change
+#   CD (Continuous Delivery/Deployment) = automatically ship it to AKS (Azure Kubernetes Service)
+
+name: CI/CD - Build and Deploy to AKS   # The name shown in the GitHub Actions tab
+
+# "on" defines WHEN this workflow runs.
+on:
+  push:
+    branches: [main]        # Run automatically whenever someone pushes to the "main" branch
+  pull_request:
+    branches: [main]        # Also run on pull requests targeting "main", so we catch problems BEFORE merging
+
+# "env" defines variables available to every job below. "secrets.X" pulls a
+# value from GitHub's encrypted Secrets storage (Settings > Secrets and
+# variables > Actions) — never hardcode passwords/keys directly in this file.
+env:
+  ACR_NAME: ${{ secrets.ACR_NAME }}                 # Name of our Azure Container Registry, e.g. "myregistry" (no .azurecr.io suffix)
+  ACR_LOGIN_SERVER: ${{ secrets.ACR_NAME }}.azurecr.io   # Full hostname used to push/pull Docker images
+  IMAGE_NAME: hello-world                             # What we'll call our Docker image
+  AKS_RESOURCE_GROUP: ${{ secrets.AKS_RESOURCE_GROUP }}   # Azure "folder" that contains our AKS cluster
+  AKS_CLUSTER_NAME: ${{ secrets.AKS_CLUSTER_NAME }}       # Name of the actual Kubernetes cluster in Azure
+  K8S_NAMESPACE: default                               # Which Kubernetes namespace (a virtual sub-cluster) we deploy into
+
+# "jobs" are groups of steps. Each job runs on its own fresh virtual machine.
+# By default, jobs run in PARALLEL unless one says it "needs" another —
+# here they're chained in order: test -> build & push image -> deploy.
+jobs:
+
+  # ---------------------------------------------------------------------
+  # JOB 1: Compile the Java code and run our automated tests.
+  # This runs on EVERY push and pull request, to catch bugs early.
+  # ---------------------------------------------------------------------
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest       # Use a fresh Ubuntu Linux virtual machine provided by GitHub
+    steps:
+      # "Checkout" downloads our repo's code onto this virtual machine so
+      # later steps have something to work with.
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Installs Java 17 (Temurin distribution) on the virtual machine, and
+      # turns on caching so Maven dependencies don't get re-downloaded from
+      # scratch on every single run (faster pipeline).
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      # Runs Maven's "verify" phase, which compiles the code AND runs all
+      # our automated tests (like HelloControllerTest). If any test fails,
+      # this step fails and the whole pipeline stops here — bad code never
+      # reaches production.
+      - name: Build and run tests
+        run: mvn -B clean verify
+
+      # Even if the tests failed, save the test result reports as a
+      # downloadable file attached to this workflow run, so we can inspect
+      # exactly what went wrong from the GitHub Actions UI.
+      - name: Upload test results
+        if: always()   # Run this step even if a previous step failed
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: target/surefire-reports/
+
+  # ---------------------------------------------------------------------
+  # JOB 2: Package the app into a Docker image and upload it to Azure
+  # Container Registry (ACR) — a private storage location for our images.
+  # Only runs after build-and-test succeeds, and ONLY for real pushes to
+  # main (not for pull requests, since we don't want to publish images for
+  # unmerged/experimental code).
+  # ---------------------------------------------------------------------
+  build-and-push-image:
+    name: Build & Push Docker Image to ACR
+    needs: build-and-test                                              # Wait for JOB 1 to succeed first
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'   # Only run on direct pushes to main
+    runs-on: ubuntu-latest
+    outputs:
+      # Exposes this job's image tag so the NEXT job (deploy) can reuse it.
+      image_tag: ${{ steps.vars.outputs.image_tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Tags our Docker image with the first 8 characters of the Git commit
+      # hash (e.g. "a1b2c3d4"). This gives every build a unique, traceable
+      # version instead of always overwriting a single "latest" tag.
+      - name: Set image tag
+        id: vars
+        run: echo "image_tag=${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+
+      # Logs into Azure using a Service Principal (like a robot account)
+      # whose credentials are stored in the AZURE_CREDENTIALS secret.
+      # This proves to Azure that this pipeline is allowed to act on our behalf.
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # Now that we're authenticated with Azure, this specifically logs
+      # Docker into our Azure Container Registry so we're allowed to push
+      # images to it.
+      - name: ACR login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      # Buildx is an enhanced Docker build engine with better caching and
+      # multi-platform support — setting it up here so the next step can use it.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Actually builds the Docker image using our Dockerfile, and pushes
+      # (uploads) it to ACR. We tag it two ways: with the unique commit-based
+      # tag, and also as "latest" for convenience.
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .          # Build using the current directory (where the Dockerfile lives)
+          push: true            # Upload the finished image to the registry (not just build it locally)
+          tags: |
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.image_tag }}
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
+          # Caching speeds up future builds by reusing unchanged image layers
+          # from previous GitHub Actions runs (gha = GitHub Actions cache).
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ---------------------------------------------------------------------
+  # JOB 3: Deploy the newly built image to our AKS (Azure Kubernetes
+  # Service) cluster. Only runs after the image has been successfully
+  # built and pushed to ACR.
+  # ---------------------------------------------------------------------
+  deploy-to-aks:
+    name: Deploy to AKS
+    needs: build-and-push-image
+    runs-on: ubuntu-latest
+    # "environment: production" is a GitHub feature that lets you require
+    # manual approval before this job runs, and shows deployment history
+    # under the repo's "Environments" tab.
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Log into Azure again — each job runs on a brand new virtual machine,
+      # so credentials don't carry over between jobs; we must log in fresh.
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # Downloads the AKS cluster's connection credentials (kubeconfig) so
+      # the "kubectl" command-line tool (used in later steps) knows which
+      # cluster to talk to and how to authenticate.
+      - name: Set AKS context
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ env.AKS_RESOURCE_GROUP }}
+          cluster-name: ${{ env.AKS_CLUSTER_NAME }}
+
+      # Our deployment.yaml file has a placeholder text "IMAGE_PLACEHOLDER"
+      # instead of a real image name (since the image name changes every
+      # build). This step uses "sed" (a text-replacement tool) to swap that
+      # placeholder for the actual image we just pushed to ACR, tagged with
+      # this build's unique commit-based tag.
+      - name: Substitute image in manifest
+        run: |
+          sed -i "s#IMAGE_PLACEHOLDER#${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push-image.outputs.image_tag }}#g" k8s/deployment.yaml
+
+      # Applies our Kubernetes manifests (deployment.yaml + service.yaml) to
+      # the cluster. Kubernetes compares what we're asking for against what's
+      # currently running, and makes only the changes needed (a "rolling
+      # update") so the app stays available with zero downtime.
+      - name: Deploy to AKS
+        uses: azure/k8s-deploy@v5
+        with:
+          namespace: ${{ env.K8S_NAMESPACE }}
+          manifests: |
+            k8s/deployment.yaml
+            k8s/service.yaml
+          images: |
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push-image.outputs.image_tag }}
+
+      # Waits and watches until Kubernetes confirms the new pods are up and
+      # healthy (or fails the pipeline if the rollout doesn't succeed within
+      # 180 seconds). Then prints the Service info, which includes the
+      # public IP address you can visit in a browser to see "Hello, World!".
+      - name: Verify rollout
+        run: |
+          kubectl rollout status deployment/hello-world -n ${{ env.K8S_NAMESPACE }} --timeout=180s
+          kubectl get svc hello-world -n ${{ env.K8S_NAMESPACE }}

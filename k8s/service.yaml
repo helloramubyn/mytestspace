@@ -1,0 +1,28 @@
+# A Kubernetes "Service" gives a stable network address to a group of pods.
+# Pods are temporary (they get created/destroyed/replaced constantly), so
+# their individual IP addresses keep changing. A Service provides one fixed
+# entry point that automatically routes traffic to whichever pods are
+# currently healthy, using the label selector below.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-world       # The name other things inside the cluster can use to reach this Service
+  labels:
+    app: hello-world
+
+spec:
+  # "LoadBalancer" tells the cloud provider (Azure, in our case, via AKS) to
+  # provision an actual external Load Balancer with a public IP address, so
+  # this app can be reached from outside the cluster (e.g. from a browser).
+  type: LoadBalancer
+
+  # Sends traffic to any pod matching this label — this is how the Service
+  # finds the pods created by our Deployment (see deployment.yaml).
+  selector:
+    app: hello-world
+
+  ports:
+    - port: 80          # The port external users/clients connect to (standard HTTP port)
+      targetPort: 8080    # The port to forward that traffic to INSIDE the pod (matches containerPort in deployment.yaml)
+      protocol: TCP        # The network protocol used (TCP is standard for HTTP traffic)

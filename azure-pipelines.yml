@@ -1,0 +1,202 @@
+# ============================================================================
+# Azure DevOps Pipeline (ADO Pipelines) — CI/CD for our Java Hello World app.
+#
+# This file replaces the old GitHub Actions pipeline (now archived under
+# /archive/github-actions/ci-cd.yml) as our ACTIVE pipeline.
+#
+# Concepts used in this file, explained up front:
+#   - Pipeline  = the whole automated process described in this file
+#   - Stage     = a big phase of the pipeline (e.g. "Build", "Deploy"). Stages
+#                 run in order by default, one after another.
+#   - Job       = a unit of work inside a stage that runs on ONE virtual
+#                 machine (called an "agent"). A stage can have multiple jobs.
+#   - Step/Task = a single action inside a job (e.g. "run this script",
+#                 "build a Docker image"). A "task" is a pre-built, reusable
+#                 step published by Microsoft or the community.
+#   - Service connection = a saved set of credentials in Azure DevOps
+#                 (Project Settings > Service connections) that lets the
+#                 pipeline authenticate to an external system, like Azure,
+#                 without hardcoding secrets in this file.
+#
+# BEFORE this pipeline can run successfully, someone needs to set up in the
+# Azure DevOps project (one-time setup, done in the Azure DevOps web UI, not
+# in this file):
+#   1. A "Variable Group" (Pipelines > Library) named "hello-world-secrets"
+#      containing: acrName, aksResourceGroup, aksClusterName
+#   2. A Docker Registry service connection named "acr-service-connection"
+#      pointing at our Azure Container Registry.
+#   3. An Azure Resource Manager service connection named
+#      "azure-subscription-connection" pointing at our Azure subscription
+#      (used to talk to AKS).
+#   4. An Environment (Pipelines > Environments) named "production" — this is
+#      where you can optionally require a human to click "Approve" before the
+#      Deploy stage is allowed to run.
+# ============================================================================
+
+# "trigger" defines which branch pushes automatically start this pipeline.
+trigger:
+  branches:
+    include:
+      - main          # Run automatically whenever someone pushes to "main"
+
+# "pr" defines which pull requests automatically start this pipeline (as a
+# validation build) — this lets us catch broken builds BEFORE merging.
+pr:
+  branches:
+    include:
+      - main
+
+# "variables" are reusable values we can reference anywhere below as
+# $(variableName). Grouping them here means we only have to change a value
+# in ONE place.
+variables:
+  # Pulls in acrName, aksResourceGroup, aksClusterName from the Variable
+  # Group set up in Azure DevOps Library (see setup notes above). Variable
+  # Groups are how ADO keeps secrets/environment-specific values OUT of this
+  # YAML file, similar to GitHub's "Secrets".
+  - group: hello-world-secrets
+
+  - name: imageName
+    value: 'hello-world'                    # What we'll call our Docker image
+
+  - name: acrLoginServer
+    value: '$(acrName).azurecr.io'          # Full hostname used to push/pull Docker images (acrName comes from the variable group)
+
+  - name: k8sNamespace
+    value: 'default'                        # Which Kubernetes namespace (virtual sub-cluster) we deploy into
+
+  - name: dockerRegistryServiceConnection
+    value: 'acr-service-connection'         # Name of the Docker Registry service connection (set up in Project Settings) pointing at our ACR
+
+  - name: azureSubscriptionServiceConnection
+    value: 'azure-subscription-connection'  # Name of the Azure Resource Manager service connection (set up in Project Settings) used to reach AKS
+
+# "stages" run in order, one after another (Build -> Push -> Deploy), unless
+# you tell a stage to depend on something else or run in parallel.
+stages:
+
+  # ==========================================================================
+  # STAGE 1: Compile the Java code and run our automated tests.
+  # Runs on every push AND every pull request, to catch bugs early.
+  # ==========================================================================
+  - stage: Build_And_Test
+    displayName: 'Build & Test'
+    jobs:
+      - job: BuildAndTest
+        displayName: 'Compile code and run unit tests'
+        pool:
+          vmImage: 'ubuntu-latest'   # Use a fresh Ubuntu Linux virtual machine hosted by Microsoft
+        steps:
+
+          # The built-in Maven task: compiles our code, runs tests, and
+          # automatically publishes the test results to the "Tests" tab in
+          # the Azure DevOps pipeline run — no separate upload step needed
+          # (unlike the GitHub Actions version).
+          - task: Maven@4
+            displayName: 'mvn clean verify (build + run tests)'
+            inputs:
+              mavenPomFile: 'pom.xml'            # Location of our Maven project file
+              goals: 'clean verify'               # clean = wipe old build output; verify = compile + run tests
+              publishJUnitResults: true            # Turn test results into a nice report in the ADO UI
+              testResultsFiles: '**/surefire-reports/TEST-*.xml'   # Where Maven writes test result XML files
+              javaHomeOption: 'JDKVersion'          # Use a JDK that's already installed on the hosted agent...
+              jdkVersionOption: '1.17'               # ...specifically Java 17, matching our pom.xml
+              mavenVersionOption: 'Default'           # Use the Maven version pre-installed on the agent
+
+  # ==========================================================================
+  # STAGE 2: Package the app into a Docker image and upload it to Azure
+  # Container Registry (ACR) — a private storage location for our images.
+  # Only runs after Build_And_Test succeeds, and only for the "main" branch
+  # (not for pull request validation builds), same logic as before.
+  # ==========================================================================
+  - stage: Build_And_Push_Image
+    displayName: 'Build & Push Docker Image to ACR'
+    dependsOn: Build_And_Test   # Wait for Stage 1 to finish successfully first
+    # "condition" is a logical expression Azure Pipelines evaluates before
+    # running this stage. Here: only proceed if stage 1 succeeded, we're on
+    # the main branch, and this run was NOT triggered by a pull request.
+    condition: >
+      and(
+        succeeded(),
+        eq(variables['Build.SourceBranch'], 'refs/heads/main'),
+        ne(variables['Build.Reason'], 'PullRequest')
+      )
+    jobs:
+      - job: BuildAndPushImage
+        displayName: 'Build and push Docker image'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+
+          # The built-in Docker task, pointed at our ACR service connection.
+          # "buildAndPush" does two things in one step: builds the image
+          # from our Dockerfile, then pushes it to the registry.
+          - task: Docker@2
+            displayName: 'docker build && docker push to ACR'
+            inputs:
+              containerRegistry: '$(dockerRegistryServiceConnection)'   # Which registry to log into (uses the service connection's saved credentials)
+              repository: '$(imageName)'                                 # The image's name inside the registry
+              command: 'buildAndPush'                                     # Build the image, then push it
+              Dockerfile: '**/Dockerfile'                                  # Search for our Dockerfile anywhere in the repo
+              tags: |
+                $(Build.SourceVersion)
+                latest
+              # Build.SourceVersion is the full Git commit hash that triggered
+              # this run — tagging with it means every build is traceable
+              # back to the exact code that produced it. We also tag "latest"
+              # for convenience when just wanting the newest image.
+
+  # ==========================================================================
+  # STAGE 3: Deploy the newly built image to our AKS (Azure Kubernetes
+  # Service) cluster. Only runs after the image has been successfully built
+  # and pushed to ACR.
+  # ==========================================================================
+  - stage: Deploy_To_AKS
+    displayName: 'Deploy to AKS'
+    dependsOn: Build_And_Push_Image
+    jobs:
+      # A "deployment" job (instead of a plain "job") is a special Azure
+      # Pipelines job type built specifically for deployments. It links this
+      # run to the "production" Environment in ADO, which gives us a
+      # deployment history log and lets us add manual-approval gates without
+      # changing this YAML file.
+      - deployment: DeployToAKS
+        displayName: 'Deploy to AKS cluster'
+        pool:
+          vmImage: 'ubuntu-latest'
+        environment: 'production'   # Must match an Environment created under Pipelines > Environments in the ADO UI
+        strategy:
+          # "runOnce" is the simplest deployment strategy: run the steps one
+          # time, straight through (no canary/blue-green rollout logic).
+          runOnce:
+            deploy:
+              steps:
+
+                # The built-in Kubernetes manifest deployment task. It:
+                #   1. Authenticates to AKS using our Azure subscription
+                #      service connection (no separate kubeconfig needed).
+                #   2. Reads our plain deployment.yaml/service.yaml files.
+                #   3. Swaps in the real image name+tag automatically via the
+                #      "containers" input — we don't need a manual "sed"
+                #      text-replacement step like we did in GitHub Actions;
+                #      this task does the IMAGE_PLACEHOLDER substitution for us.
+                #   4. Applies the manifests to the cluster (a rolling update,
+                #      so the app stays available with zero downtime).
+                - task: KubernetesManifest@1
+                  displayName: 'Apply Kubernetes manifests to AKS'
+                  inputs:
+                    action: 'deploy'
+                    connectionType: 'azureResourceManager'                       # Authenticate via our Azure subscription, not a separate raw kubeconfig
+                    azureSubscriptionConnection: '$(azureSubscriptionServiceConnection)'
+                    azureResourceGroup: '$(aksResourceGroup)'                     # Resource group containing the AKS cluster (from the variable group)
+                    kubernetesCluster: '$(aksClusterName)'                         # Name of the AKS cluster itself (from the variable group)
+                    namespace: '$(k8sNamespace)'
+                    manifests: |
+                      k8s/deployment.yaml
+                      k8s/service.yaml
+                    containers: |
+                      $(acrLoginServer)/$(imageName):$(Build.SourceVersion)
+                    # ^ This tells the task: "wherever a container image is
+                    # referenced in those manifest files, replace it with
+                    # this exact image" — matching the IMAGE_PLACEHOLDER
+                    # value in k8s/deployment.yaml.

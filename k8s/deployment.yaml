@@ -1,0 +1,61 @@
+# This is a Kubernetes "Deployment" manifest. A Deployment tells Kubernetes:
+# "keep this many copies of my app container running at all times, and if one
+# crashes or a node dies, automatically replace it." YAML files like this are
+# how you describe your desired state to Kubernetes declaratively.
+
+apiVersion: apps/v1   # Which version of the Kubernetes API this object uses
+kind: Deployment       # The type of Kubernetes object we're creating
+metadata:
+  name: hello-world     # The name of this Deployment object inside the cluster
+  labels:
+    app: hello-world     # A tag used to identify/group related resources
+
+spec:                    # "spec" = the desired state we want Kubernetes to achieve
+  replicas: 2             # Run 2 identical copies (pods) of our app for redundancy
+  selector:
+    # Tells this Deployment which pods it is responsible for managing —
+    # any pod with label app=hello-world "belongs" to this Deployment.
+    matchLabels:
+      app: hello-world
+  template:                # The blueprint used to create each pod (a pod = one running instance of our container)
+    metadata:
+      labels:
+        app: hello-world     # Must match "selector" above so this Deployment recognizes its own pods
+    spec:
+      containers:
+        - name: hello-world
+          # IMAGE_PLACEHOLDER gets replaced by the CI/CD pipeline with the real
+          # image location, e.g. myregistry.azurecr.io/hello-world:abc12345
+          image: IMAGE_PLACEHOLDER
+          ports:
+            - containerPort: 8080   # The port our app listens on inside the container (matches server.port in application.properties)
+
+          # A "readiness probe" asks: is this pod ready to receive traffic yet?
+          # Kubernetes won't send users to this pod until this check passes.
+          # Useful during startup or if the app is temporarily overloaded.
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness   # Spring Boot Actuator endpoint that reports readiness
+              port: 8080
+            initialDelaySeconds: 10   # Wait 10s after container starts before checking (give it time to boot)
+            periodSeconds: 5           # Then re-check every 5 seconds
+
+          # A "liveness probe" asks: is this pod still alive/healthy, or stuck?
+          # If this check keeps failing, Kubernetes kills and restarts the pod.
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+
+          # Resource requests/limits tell Kubernetes how much CPU/memory this
+          # container needs, so it can schedule pods onto nodes intelligently
+          # and prevent one app from starving others on the same machine.
+          resources:
+            requests:              # The minimum guaranteed to this container
+              cpu: "100m"            # "100m" = 0.1 of a CPU core
+              memory: "256Mi"         # 256 mebibytes of RAM
+            limits:                 # The maximum this container is allowed to use
+              cpu: "500m"             # 0.5 of a CPU core
+              memory: "512Mi"         # If it tries to use more memory than this, it gets killed and restarted

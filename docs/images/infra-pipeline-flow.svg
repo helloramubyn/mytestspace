@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 320" role="img" aria-label="Infra pipeline flow: a push to the infra repo triggers terraform init, then terraform plan, which publishes a plan file for a human to review and manually approve before terraform apply runs and creates or updates the real Azure resources.">
+  <defs>
+    <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1e293b"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1300" height="320" fill="#ffffff"/>
+
+  <!-- Trigger -->
+  <rect x="20" y="110" width="160" height="70" rx="8" fill="#eef2ff" stroke="#1e293b" stroke-width="1.5"/>
+  <text x="100" y="140" text-anchor="middle" font-size="12" font-family="sans-serif" fill="#1e293b">Push to infra-repo</text>
+  <text x="100" y="157" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#475569">main branch</text>
+
+  <!-- init -->
+  <rect x="230" y="110" width="160" height="70" rx="8" fill="#dbeafe" stroke="#1e293b" stroke-width="1.5"/>
+  <text x="310" y="140" text-anchor="middle" font-size="12" font-family="sans-serif" fill="#1e293b">terraform init</text>
+  <text x="310" y="157" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#475569">downloads providers</text>
+
+  <!-- plan -->
+  <rect x="440" y="110" width="160" height="70" rx="8" fill="#dbeafe" stroke="#1e293b" stroke-width="1.5"/>
+  <text x="520" y="140" text-anchor="middle" font-size="12" font-family="sans-serif" fill="#1e293b">terraform plan</text>
+  <text x="520" y="157" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#475569">computes changes</text>
+
+  <!-- plan artifact -->
+  <rect x="440" y="220" width="160" height="60" rx="8" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="520" y="245" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#475569">plan output</text>
+  <text x="520" y="261" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#475569">saved as a file to review</text>
+  <line x1="520" y1="180" x2="520" y2="218" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow2)"/>
+
+  <!-- approval -->
+  <rect x="650" y="110" width="170" height="70" rx="8" fill="#fef3c7" stroke="#1e293b" stroke-width="1.5"/>
+  <text x="735" y="135" text-anchor="middle" font-size="12" font-family="sans-serif" fill="#1e293b">Manual approval</text>
+  <text x="735" y="152" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#475569">a human reviews the</text>
+  <text x="735" y="167" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#475569">plan and clicks Approve</text>
+
+  <!-- apply -->
+  <rect x="870" y="110" width="160" height="70" rx="8" fill="#dbeafe" stroke="#1e293b" stroke-width="1.5"/>
+  <text x="950" y="140" text-anchor="middle" font-size="12" font-family="sans-serif" fill="#1e293b">terraform apply</text>
+  <text x="950" y="157" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#475569">makes the changes real</text>
+
+  <!-- resources -->
+  <rect x="1080" y="100" width="190" height="90" rx="8" fill="#dcfce7" stroke="#1e293b" stroke-width="2"/>
+  <text x="1175" y="130" text-anchor="middle" font-size="12" font-family="sans-serif" fill="#1e293b">Azure resources</text>
+  <text x="1175" y="147" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#475569">created or updated:</text>
+  <text x="1175" y="163" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#475569">VNet, AKS, ACR,</text>
+  <text x="1175" y="178" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#475569">Log Analytics</text>
+
+  <!-- arrows main line -->
+  <line x1="180" y1="145" x2="228" y2="145" stroke="#1e293b" stroke-width="1.5" marker-end="url(#arrow2)"/>
+  <line x1="390" y1="145" x2="438" y2="145" stroke="#1e293b" stroke-width="1.5" marker-end="url(#arrow2)"/>
+  <line x1="600" y1="145" x2="648" y2="145" stroke="#1e293b" stroke-width="1.5" marker-end="url(#arrow2)"/>
+  <line x1="820" y1="145" x2="868" y2="145" stroke="#1e293b" stroke-width="1.5" marker-end="url(#arrow2)"/>
+  <line x1="1030" y1="145" x2="1078" y2="145" stroke="#1e293b" stroke-width="1.5" marker-end="url(#arrow2)"/>
+
+  <text x="620" y="40" text-anchor="middle" font-size="12" font-family="sans-serif" fill="#475569">The approval gate exists so nobody's infrastructure changes get applied to production unreviewed.</text>
+</svg>

@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 700" role="img" aria-label="Developer pushes to GitHub, which triggers two Azure DevOps pipelines: an infra pipeline that runs terraform apply to provision the VNet, AKS, ACR and Log Analytics inside an Azure resource group, and an app CI/CD pipeline that pushes a Docker image to ACR and applies Kubernetes manifests to AKS. AKS pulls images from ACR at runtime, sends logs and metrics to Log Analytics, and routes end-user traffic through a Load Balancer.">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1e293b"/>
+    </marker>
+    <marker id="arrowDashed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1400" height="700" fill="#ffffff"/>
+
+  <!-- Developer -->
+  <rect x="20" y="50" width="150" height="55" rx="8" fill="#eef2ff" stroke="#1e293b" stroke-width="1.5"/>
+  <text x="95" y="83" text-anchor="middle" font-size="13" font-family="sans-serif" fill="#1e293b">Developer</text>
+
+  <!-- GitHub -->
+  <rect x="20" y="170" width="150" height="70" rx="8" fill="#eef2ff" stroke="#1e293b" stroke-width="1.5"/>
+  <text x="95" y="198" text-anchor="middle" font-size="13" font-family="sans-serif" fill="#1e293b">GitHub</text>
+  <text x="95" y="215" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#475569">app-repo + infra-repo</text>
+
+  <!-- Developer -> GitHub -->
+  <line x1="95" y1="105" x2="95" y2="168" stroke="#1e293b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="102" y="140" font-size="11" font-family="sans-serif" fill="#1e293b">git push</text>
+
+  <!-- Azure DevOps container -->
+  <rect x="230" y="60" width="260" height="230" rx="10" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5,4"/>
+  <text x="245" y="48" font-size="12" font-family="sans-serif" fill="#475569">Azure DevOps Pipelines</text>
+
+  <!-- Infra pipeline lane -->
+  <rect x="250" y="90" width="220" height="65" rx="8" fill="#dbeafe" stroke="#1e293b" stroke-width="1.5"/>
+  <text x="360" y="115" text-anchor="middle" font-size="12" font-family="sans-serif" fill="#1e293b">Infra Pipeline</text>
+  <text x="360" y="132" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#475569">terraform init/plan/apply</text>
+
+  <!-- App CI/CD pipeline lane -->
+  <rect x="250" y="200" width="220" height="65" rx="8" fill="#dbeafe" stroke="#1e293b" stroke-width="1.5"/>
+  <text x="360" y="225" text-anchor="middle" font-size="12" font-family="sans-serif" fill="#1e293b">App CI/CD Pipeline</text>
+  <text x="360" y="242" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#475569">build, test, image, deploy</text>
+
+  <!-- GitHub -> lanes -->
+  <line x1="170" y1="195" x2="248" y2="122" stroke="#1e293b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="178" y="165" font-size="11" font-family="sans-serif" fill="#1e293b">triggers</text>
+  <line x1="170" y1="220" x2="248" y2="232" stroke="#1e293b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="178" y="250" font-size="11" font-family="sans-serif" fill="#1e293b">triggers</text>
+
+  <!-- Azure Resource Group container -->
+  <rect x="560" y="40" width="560" height="300" rx="10" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5,4"/>
+  <text x="575" y="28" font-size="12" font-family="sans-serif" fill="#475569">Azure Resource Group (rg-helloworld-prod)</text>
+
+  <!-- VNet -->
+  <rect x="590" y="80" width="150" height="60" rx="8" fill="#dcfce7" stroke="#1e293b" stroke-width="1.5"/>
+  <text x="665" y="105" text-anchor="middle" font-size="12" font-family="sans-serif" fill="#1e293b">VNet</text>
+  <text x="665" y="122" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#475569">+ subnets</text>
+
+  <!-- ACR -->
+  <rect x="770" y="80" width="150" height="60" rx="8" fill="#dcfce7" stroke="#1e293b" stroke-width="1.5"/>
+  <text x="845" y="105" text-anchor="middle" font-size="12" font-family="sans-serif" fill="#1e293b">Container Registry</text>
+  <text x="845" y="122" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#475569">(ACR)</text>
+
+  <!-- Log Analytics -->
+  <rect x="950" y="80" width="150" height="60" rx="8" fill="#dcfce7" stroke="#1e293b" stroke-width="1.5"/>
+  <text x="1025" y="105" text-anchor="middle" font-size="12" font-family="sans-serif" fill="#1e293b">Log Analytics +</text>
+  <text x="1025" y="122" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#475569">Azure Monitor</text>
+
+  <!-- AKS -->
+  <rect x="770" y="220" width="150" height="70" rx="8" fill="#bbf7d0" stroke="#1e293b" stroke-width="2"/>
+  <text x="845" y="248" text-anchor="middle" font-size="12" font-family="sans-serif" fill="#1e293b">AKS Cluster</text>
+  <text x="845" y="265" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#475569">nodes + pods</text>
+
+  <!-- infra lane -> VNet -->
+  <line x1="470" y1="120" x2="588" y2="105" stroke="#1e293b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="478" y="100" font-size="11" font-family="sans-serif" fill="#1e293b">terraform apply (provisions)</text>
+
+  <!-- VNet -> AKS -->
+  <line x1="665" y1="140" x2="768" y2="235" stroke="#1e293b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="672" y="185" font-size="11" font-family="sans-serif" fill="#1e293b">hosts</text>
+
+  <!-- app pipeline -> ACR (push) -->
+  <line x1="470" y1="225" x2="768" y2="115" stroke="#1e293b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="500" y="185" font-size="11" font-family="sans-serif" fill="#1e293b">docker push image</text>
+
+  <!-- app pipeline -> AKS (deploy manifests) -->
+  <line x1="470" y1="245" x2="768" y2="255" stroke="#1e293b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="490" y="272" font-size="11" font-family="sans-serif" fill="#1e293b">kubectl apply manifests</text>
+
+  <!-- ACR -> AKS (image pull, dashed) -->
+  <line x1="845" y1="140" x2="845" y2="218" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowDashed)"/>
+  <text x="852" y="182" font-size="11" font-family="sans-serif" fill="#64748b">image pull at runtime</text>
+
+  <!-- AKS -> Log Analytics (dashed) -->
+  <line x1="920" y1="230" x2="1000" y2="142" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowDashed)"/>
+  <text x="925" y="185" font-size="11" font-family="sans-serif" fill="#64748b">logs &amp; metrics</text>
+
+  <!-- Load Balancer -->
+  <rect x="1160" y="235" width="120" height="60" rx="8" fill="#fef3c7" stroke="#1e293b" stroke-width="1.5"/>
+  <text x="1220" y="260" text-anchor="middle" font-size="12" font-family="sans-serif" fill="#1e293b">Load Balancer</text>
+  <text x="1220" y="277" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#475569">(K8s Service)</text>
+
+  <!-- AKS -> Load Balancer -->
+  <line x1="920" y1="260" x2="1158" y2="262" stroke="#1e293b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="960" y="253" font-size="11" font-family="sans-serif" fill="#1e293b">routes traffic</text>
+
+  <!-- End User -->
+  <rect x="1160" y="340" width="120" height="55" rx="8" fill="#eef2ff" stroke="#1e293b" stroke-width="1.5"/>
+  <text x="1220" y="372" text-anchor="middle" font-size="12" font-family="sans-serif" fill="#1e293b">End User</text>
+
+  <!-- Load Balancer -> End User -->
+  <line x1="1220" y1="297" x2="1220" y2="338" stroke="#1e293b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="1227" y="322" font-size="11" font-family="sans-serif" fill="#1e293b">HTTP</text>
+</svg>

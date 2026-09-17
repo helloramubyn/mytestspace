@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- This is a Maven POM file (Project Object Model). Maven is a build tool for Java:
+     it downloads the libraries your code needs and knows how to compile, test,
+     and package your project into a runnable .jar file. -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <!-- Tells Maven which version of the POM format this file follows. Always 4.0.0. -->
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- The "parent" is a starter POM published by Spring Boot. Inheriting from it gives
+         us sensible default versions for common libraries, so we don't have to pick
+         and manage every dependency version ourselves. -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.3.4</version>
+        <relativePath/> <!-- Tells Maven "don't look for the parent POM on disk, fetch it from the online repository" -->
+    </parent>
+
+    <!-- groupId + artifactId + version together uniquely identify THIS project,
+         the same way a package name identifies a library. -->
+    <groupId>com.example</groupId>
+    <artifactId>hello-world</artifactId>
+    <version>1.0.0</version>
+    <name>hello-world</name>
+    <description>Simple Java Spring Boot Hello World web application</description>
+
+    <!-- Custom variables you can reuse elsewhere in this file. -->
+    <properties>
+        <java.version>17</java.version> <!-- Which version of Java this project is written for -->
+    </properties>
+
+    <!-- Dependencies are external libraries your code relies on. Maven downloads these
+         automatically from the internet (Maven Central) the first time you build. -->
+    <dependencies>
+        <dependency>
+            <!-- Lets us build a web application (handle HTTP requests) with an embedded
+                 web server, so we don't need to install a separate server like Tomcat. -->
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <!-- Adds "actuator" endpoints like /actuator/health, used by Kubernetes to
+                 check whether our app is alive and ready to receive traffic. -->
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <!-- Testing utilities (JUnit, MockMvc, etc). scope=test means this library
+                 is only available while running tests, not in the final packaged app. -->
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <!-- Configuration for how Maven builds/packages this project. -->
+    <build>
+        <plugins>
+            <plugin>
+                <!-- This plugin repackages the compiled code into a single "fat jar" —
+                     one file that contains our code PLUS all its dependencies PLUS a
+                     mini web server, so it can be run anywhere with just `java -jar`. -->
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

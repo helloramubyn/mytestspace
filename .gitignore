@@ -1,0 +1,10 @@
+# .gitignore tells Git which files/folders to NEVER track or commit — usually
+# because they're auto-generated and can be recreated from source, or because
+# they're specific to one person's machine/editor and shouldn't be shared.
+
+target/       # Maven's build output folder (compiled classes, the packaged .jar) — regenerated every build, no need to store it in Git
+*.class       # Compiled Java bytecode files — also just build output
+.idea/        # IntelliJ IDEA's project settings folder — personal editor config, not project code
+*.iml         # IntelliJ IDEA module files — same reason as above
+.vscode/      # VS Code's workspace settings folder — personal editor config
+HELP.md       # A default placeholder file Spring Initializr generates — not something we need to keep
