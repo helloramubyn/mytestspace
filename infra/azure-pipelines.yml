@@ -1,0 +1,136 @@
+# This is the SEPARATE pipeline that manages INFRASTRUCTURE ONLY — it never
+# touches application code. Its whole job is running the same `terraform
+# init` / `plan` / `apply` commands you'd type by hand (see infra/*.tf and
+# the DevOps guide, Section 7), but on a shared, logged machine, with a
+# mandatory human approval before anything actually changes in Azure.
+#
+# This is deliberately a DIFFERENT pipeline file from the one at the repo
+# root (which builds and deploys the APPLICATION). In a real Azure DevOps
+# project you'd create two separate Pipeline definitions, one pointed at
+# this file's path (infra/azure-pipelines.yml) and one at the root
+# azure-pipelines.yml — see the DevOps guide, Section 8, for the exact
+# one-time setup steps (service connections, the "production" Environment
+# with an approval check, etc).
+
+# Only run automatically when something under infra/ changes on main — an
+# application-only code change should never trigger an infrastructure run.
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - infra/*
+
+pool:
+  vmImage: 'ubuntu-latest'   # a fresh Ubuntu Linux virtual machine provided by Microsoft
+
+variables:
+  # Non-secret values that describe WHERE the Terraform state lives (see
+  # infra/backend.tf) — pulled from a Variable Group (Pipelines > Library)
+  # instead of hardcoded here, so the same pipeline file works if these
+  # ever change.
+  - group: terraform-backend-config
+
+stages:
+
+  # =========================================================================
+  # STAGE 1: terraform init + terraform plan.
+  # Runs on every push to main that touches infra/ — this is the "preview"
+  # stage. It never changes anything in Azure; it only computes and shows
+  # what WOULD change.
+  # =========================================================================
+  - stage: Validate
+    displayName: 'terraform init + plan'
+    jobs:
+      - job: Plan
+        displayName: 'Preview infrastructure changes'
+        steps:
+
+          # Installs the terraform command-line tool onto this virtual
+          # machine (it isn't there by default).
+          - task: TerraformInstaller@1
+            displayName: 'Install Terraform'
+            inputs:
+              terraformVersion: 'latest'
+
+          # Same as running `terraform init` yourself (see the guide,
+          # Section 7): downloads the azurerm provider plugin and connects
+          # to the remote state file described in infra/backend.tf.
+          - task: TerraformTaskV4@4
+            displayName: 'terraform init'
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
+              backendServiceArm: 'azure-subscription-connection'              # the Azure Resource Manager service connection set up in Project Settings
+              backendAzureRmResourceGroupName: 'rg-terraform-state'
+              backendAzureRmStorageAccountName: 'sttfstatehelloworld'
+              backendAzureRmContainerName: 'tfstate'
+              backendAzureRmKey: 'helloworld.tfstate'
+
+          # Same as running `terraform plan` yourself: compares the .tf
+          # files against the current state and prints exactly what would
+          # be created, changed, or destroyed. This output is what the
+          # approver in Stage 2 should actually read before clicking Approve.
+          - task: TerraformTaskV4@4
+            displayName: 'terraform plan'
+            inputs:
+              provider: 'azurerm'
+              command: 'plan'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
+              environmentServiceNameAzureRM: 'azure-subscription-connection'
+
+  # =========================================================================
+  # STAGE 2: terraform apply — but only after a human approves it.
+  # This is a "deployment" job pointed at the "production" Environment,
+  # which is what makes Azure DevOps pause here and require someone to
+  # click Approve before the steps below are allowed to run (configured
+  # once in the Azure DevOps UI, not in this file — see the guide, Section 8).
+  # =========================================================================
+  - stage: Apply
+    displayName: 'terraform apply (after approval)'
+    dependsOn: Validate       # only starts if Stage 1 succeeded
+    jobs:
+      - deployment: ApplyInfra
+        displayName: 'Apply infrastructure changes'
+        environment: 'production'     # <-- this one line is what creates the manual approval gate
+        pool:
+          vmImage: 'ubuntu-latest'
+        strategy:
+          # "runOnce" = run these steps a single time, straight through, no
+          # canary or rolling-update logic (that's for application
+          # deployments, not infrastructure).
+          runOnce:
+            deploy:
+              steps:
+                - task: TerraformInstaller@1
+                  displayName: 'Install Terraform'
+                  inputs:
+                    terraformVersion: 'latest'
+
+                # init has to be repeated here — this stage runs on a brand
+                # new, separate virtual machine from Stage 1, so nothing
+                # carries over between stages automatically.
+                - task: TerraformTaskV4@4
+                  displayName: 'terraform init'
+                  inputs:
+                    provider: 'azurerm'
+                    command: 'init'
+                    workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
+                    backendServiceArm: 'azure-subscription-connection'
+                    backendAzureRmResourceGroupName: 'rg-terraform-state'
+                    backendAzureRmStorageAccountName: 'sttfstatehelloworld'
+                    backendAzureRmContainerName: 'tfstate'
+                    backendAzureRmKey: 'helloworld.tfstate'
+
+                # The step that actually creates/changes real Azure
+                # resources. By the time this runs, a human has already
+                # reviewed Stage 1's plan output and approved it.
+                - task: TerraformTaskV4@4
+                  displayName: 'terraform apply'
+                  inputs:
+                    provider: 'azurerm'
+                    command: 'apply'
+                    workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
+                    environmentServiceNameAzureRM: 'azure-subscription-connection'
